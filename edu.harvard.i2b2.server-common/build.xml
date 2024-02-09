@@ -153,6 +153,18 @@
 	                <copy todir="${dist}/${axis2.war.name}_build/WEB-INF/services">
 	                     <fileset dir="../edu.harvard.i2b2.pm/${dist}" includes="**/*.aar" />
 	                </copy>
+	  	
+	                <echo message="${Name}: Building OntologyStore package!" />
+	                    <ant antfile="build.xml"  dir="../edu.pitt.dbmi.i2b2.ontologystore" target="clean"/>
+	                    <ant antfile="build.xml"  dir="../edu.pitt.dbmi.i2b2.ontologystore" target="all">
+	                         <property name="Name" value="OntologyStore"/>
+	                    </ant>
+	                <copy todir="${dist}/${axis2.war.name}_build/WEB-INF/lib">
+	                     <fileset dir="../edu.pitt.dbmi.i2b2.ontologystore/${dist}" includes="**/*-core.jar" />
+	                </copy>
+	                <copy todir="${dist}/${axis2.war.name}_build/WEB-INF/services">
+	                     <fileset dir="../edu.pitt.dbmi.i2b2.ontologystore/${dist}" includes="**/*.aar" />
+	                </copy>
 	 
 	               <jar destfile="${dist}/${axis2.war.name}">
 	                        <fileset dir="${dist}/${axis2.war.name}_build">

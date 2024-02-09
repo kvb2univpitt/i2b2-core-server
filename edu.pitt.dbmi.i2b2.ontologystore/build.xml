@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project basedir="." default="all" name="OntologyStore Cell">
+
+    <property name="Project" value="edu.pitt.dbmi.i2b2.ontologystore" />
+
+    <!--executable targes-->
+    <property name="Name" value="OntologyStore" />
+    <import file="../edu.harvard.i2b2.server-common/common_build.xml" />
+
+    <!--init-->
+    <target name="init" depends="common_init,common-classpath" description="Prepare for build">
+        <path id="classpath">
+            <path refid="common-classpath" />
+            <pathelement location="${classes}" />
+            <pathelement location="../${i2b2CommonProject}/dist/i2b2Common-core.jar" />
+        </path>
+
+        <taskdef name="xjc" classname="com.sun.tools.xjc.XJCTask">
+            <classpath refid="classpath" />
+        </taskdef>
+    </target>
+
+    <!--clean-->
+    <target name="clean" depends="common_clean" description="Clean all build products" />
+
+    <!--JAXB generation-->
+    <target name="jaxb_gen" depends="init" description="Generate JAXB classes for i2b2 and Vocab Data messages">
+        <exec executable="xjc">
+            <arg value="-d"/>
+            <arg value="${gensrc}"/>
+            <arg value="../${i2b2xmlproject}/xsd/hive/pdo_1.1/i2b2_PDO.xsd" />
+            <arg value="../${i2b2xmlproject}/xsd/cell/crc/pdo_1.1/CRC_PDO_QRY.xsd" />
+            <arg value="../${i2b2xmlproject}/xsd/hive/msg_1.1/i2b2_response.xsd" />
+            <arg value="../${i2b2xmlproject}/xsd/hive/msg_1.1/i2b2_result_msg.xsd" />
+            <arg value="../${i2b2xmlproject}/xsd/cell/crc/psm_1.1/CRC_PSM_QRY.xsd" />
+            <arg value="../${i2b2xmlproject}/xsd/cell/crc/psm_1.1/CRC_PSM_QRY_query_definition.xsd" />
+            <arg value="../${i2b2xmlproject}/xsd/cell/crc/psm_1.1/CRC_PSM_QRY_analysis_definition.xsd" />
+            <arg value="../${i2b2xmlproject}/xsd/cell/im/IM_QRY.xsd" />
+            <arg value="../${i2b2xmlproject}/xsd/cell/im/IM_RESP.xsd" />
+            <arg value="../${i2b2xmlproject}/xsd/cell/pm_1.1/PM_USER.xsd" />
+            <arg value="../${i2b2xmlproject}/xsd/cell/ontstore/ontologystore.xsd" />
+
+            <arg value="-b"/>
+            <arg value="./etc/xsd/i2b2_response.xjb"/>
+            <arg value="-b"/>
+            <arg value="./etc/xsd/i2b2_pm_bindings.xjb"/>
+            <arg value="-b"/>
+            <arg value="./etc/xsd/crc_psm_qry.xjb"/>
+            <arg value="-b"/>
+            <arg value="./etc/xsd/crc_psm_analysisdefinition.xjb"/>
+            <arg value="-b"/>
+            <arg value="./etc/xsd/crc_psm_querydefinition.xjb"/>
+            <arg value="-b"/>
+            <arg value="./etc/xsd/crc_hive_result.xjb"/>
+            <arg value="-b"/>
+            <arg value="./etc/xsd/i2b2_pdo.xjb"/>
+            <arg value="-b"/>
+            <arg value="./etc/xsd/crc_pdo_qry.xjb"/>
+            <arg value="-b"/>
+            <arg value="./etc/xsd/i2b2_wdo_bindings.xjb"/>
+            <arg value="-b" />
+            <arg value="./etc/xsd/ontologystore.xjb" />
+        </exec>
+    </target>
+
+    <!--compile-->
+    <target name="compile" depends="init" description="Compile files without cleaning">
+        <mkdir dir="${classes}" />
+        <javac destdir="${classes}" optimize="${javac.opt}" debug="true">
+            <src path="${src}" />
+            <src path="${gensrc}" />
+            <classpath refid="classpath" />
+        </javac>
+    </target>
+
+    <!--dist-->
+    <target name="dist"  description="package application for distribution/deployment">
+        <echo message="${Name}: Creating the archive package!" />
+        <antcall target="axis2aar" />
+        <antcall target="jar_core" />
+    </target>
+
+    <!-- Axis2 archive file -->
+    <target name="axis2aar" depends="compile" description="Create Axis2 archive file">
+        <jar compress="true" jarfile="${dist}/${Name}.aar">
+            <fileset dir="${classes}">
+                <include name="**/**" />
+                <exclude name="**/datavo/**" />
+            </fileset>
+            <zipfileset dir="${etc}/axis2/" prefix="META-INF" includes="*.xml" />
+            <zipfileset dir="${etc}/axis2/" includes="*.xml" />
+            <zipfileset dir="${etc}/ont/" prefix="ont" includes="*.sql" />
+            <zipfileset dir="${etc}/ont/oracle" prefix="ont/oracle" includes="*.sql" />
+            <zipfileset dir="${etc}/ont/postgresql" prefix="ont/postgresql" includes="*.sql" />
+            <zipfileset dir="${etc}/ont/sqlserver" prefix="ont/sqlserver" includes="*.sql" />
+            <zipfileset dir="../${i2b2CommonProject}/dist/" prefix="lib" includes="*.jar"/>
+            <zipfileset dir="lib/" prefix="lib" includes="*.jar"/>
+        </jar>
+    </target>
+
+    <!-- Jar core file -->
+    <target name="jar_core" depends="compile" description="Create Ont core jar">
+        <jar compress="true" jarfile="${dist}/${Name}-core.jar">
+            <fileset dir="${classes}">
+                <include name="**/datavo/**" />
+            </fileset>
+            <zipfileset dir="${etc}/axis2/" prefix="META-INF" includes="*.xml" />
+            <zipfileset dir="${etc}/axis2/" includes="*.xml" />
+            <zipfileset dir="${etc}/ont" prefix="ont" includes="*.sql" />
+            <zipfileset dir="${etc}/ont/oracle" prefix="ont/oracle" includes="*.sql" />
+            <zipfileset dir="${etc}/ont/postgresql" prefix="ont/postgresql" includes="*.sql" />
+            <zipfileset dir="${etc}/ont/sqlserver" prefix="ont/sqlserver" includes="*.sql" />
+        </jar>
+    </target>
+
+    <!--all-->
+    <target name="all" depends="dist"></target>
+
+    <!--JBOSS deploy-->
+    <target name="deploy"  description="Deployment step:copy distribution jar files to app server">
+        <echo message="${Name}: Copying archive package to app server ${jboss.home}" />
+        <copy todir="${jboss.home}/standalone/deployments/${axis2.war.name}/WEB-INF/lib">
+            <fileset dir="${dist}">
+                <exclude name="**/**.aar" />
+                <exclude name="**/*client.jar"/>
+            </fileset>
+        </copy>
+        <copy todir="${jboss.home}/standalone/deployments/${axis2.war.name}/WEB-INF/services">
+            <fileset dir="${dist}">
+                <include name="**/**.aar" />
+            </fileset>
+        </copy>
+        <copy todir="${jboss.home}/standalone/deployments">
+            <fileset dir="${etc}/jboss">
+            </fileset>
+        </copy>
+    </target>
+
+    <!--JBOSS deploy archive only-->
+    <target name="service_deploy">
+        <echo message="${Name}: Copying archive package to app server ${jboss.home}" />
+        <copy todir="${jboss.home}/standalone/deployments/${axis2.war.name}/WEB-INF/lib">
+            <fileset dir="${dist}">
+                <exclude name="**/**.aar" />
+                <exclude name="**/*client.jar"/>
+            </fileset>
+        </copy>
+        <copy todir="${jboss.home}/standalone/deployments/${axis2.war.name}/WEB-INF/services">
+            <fileset dir="${dist}">
+                <include name="**/**.aar" />
+            </fileset>
+        </copy>
+    </target>
+</project>
