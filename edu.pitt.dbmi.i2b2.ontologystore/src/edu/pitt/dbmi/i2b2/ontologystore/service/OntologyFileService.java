@@ -35,7 +35,6 @@ import java.util.stream.Collectors;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 
 /**
  *
@@ -49,23 +48,19 @@ public class OntologyFileService {
 
     private final ObjectMapper objMapper = new ObjectMapper();
 
-    private final String ontologyListFileUrl;
     private final FileSysService fileSysService;
 
     @Autowired
-    public OntologyFileService(
-            @Value("${aws.s3.json.product.list}") String ontologyListFileUrl,
-            FileSysService fileSysService) {
-        this.ontologyListFileUrl = ontologyListFileUrl;
+    public OntologyFileService(FileSysService fileSysService) {
         this.fileSysService = fileSysService;
     }
 
-    public List<ProductType> getAvailableProducts() {
+    public List<ProductType> getAvailableProducts(String downloadDirectory, String productListUrl) {
         List<ProductType> productDisplays = new LinkedList<>();
 
         try {
-            getProducts().stream()
-                    .map(this::toProductTypes)
+            getProducts(productListUrl).stream()
+                    .map(productItem -> toProductTypes(downloadDirectory, productItem))
                     .forEach(productDisplays::add);
         } catch (IOException exception) {
             LOGGER.error("", exception);
@@ -74,7 +69,7 @@ public class OntologyFileService {
         return productDisplays;
     }
 
-    private ProductType toProductTypes(ProductItem productItem) {
+    private ProductType toProductTypes(String downloadDirectory, ProductItem productItem) {
         ProductType productType = new ProductType();
         productType.setId(productItem.getId());
         productType.setTitle(productItem.getTitle());
@@ -87,7 +82,7 @@ public class OntologyFileService {
         terminologies.getTerminology().addAll(Arrays.asList(productItem.getTerminologies()));
         productType.setTerminologies(terminologies);
 
-        getStatus(productType, productItem);
+        getStatus(downloadDirectory, productType, productItem);
 
         return productType;
     }
@@ -96,46 +91,54 @@ public class OntologyFileService {
         return !(networkFiles == null || networkFiles.length == 0);
     }
 
-    private void getStatus(ProductType product, ProductItem productItem) {
+    private void getStatus(String downloadDirectory, ProductType product, ProductItem productItem) {
         String productFolder = product.getId();
-        if (fileSysService.hasDirectory(productFolder)) {
-            if (fileSysService.hasFinshedDownload(productFolder) && fileSysService.isProductFileExists(productItem)) {
+        if (fileSysService.hasDirectory(downloadDirectory, productFolder)) {
+            if (fileSysService.hasFinshedDownload(downloadDirectory, productFolder) && fileSysService.isProductFileExists(downloadDirectory, productItem)) {
                 product.setDownloaded(true);
-                product.setIncludeNetworkPackage(fileSysService.hasNetworkFiles(productFolder));
+                product.setIncludeNetworkPackage(fileSysService.hasNetworkFiles(downloadDirectory, productFolder));
 
-                if (fileSysService.hasFinshedInstall(productFolder)) {
+                if (fileSysService.hasFinshedInstall(downloadDirectory, productFolder)) {
                     product.setInstalled(true);
-                    if (fileSysService.hasOntologyDisabled(productFolder)) {
+                    if (fileSysService.hasOntologyDisabled(downloadDirectory, productFolder)) {
                         product.setDisabled(true);
                     }
-                } else if (fileSysService.hasFailedInstall(productFolder)) {
+                } else if (fileSysService.hasFailedInstall(downloadDirectory, productFolder)) {
                     product.setFailed(true);
-                    product.setStatusDetail(fileSysService.getFailedInstallMessage(productFolder));
-                } else if (fileSysService.hasStartedInstall(productFolder)) {
+                    product.setStatusDetail(fileSysService.getFailedInstallMessage(downloadDirectory, productFolder));
+                } else if (fileSysService.hasStartedInstall(downloadDirectory, productFolder)) {
                     product.setStarted(true);
                 }
-            } else if (fileSysService.hasFailedDownload(productFolder)) {
+            } else if (fileSysService.hasFailedDownload(downloadDirectory, productFolder)) {
                 product.setFailed(true);
-                product.setStatusDetail(fileSysService.getFailedDownloadMessage(productFolder));
-            } else if (fileSysService.hasStartedDownload(productFolder)) {
+                product.setStatusDetail(fileSysService.getFailedDownloadMessage(downloadDirectory, productFolder));
+            } else if (fileSysService.hasStartedDownload(downloadDirectory, productFolder)) {
                 product.setStarted(true);
             }
         }
     }
 
-    public Map<String, ProductItem> getProductItems() {
+    public Map<String, ProductItem> getProductItems(String productListUrl) {
         try {
-            return getProducts().stream()
+            return getProducts(productListUrl).stream()
                     .collect(Collectors.toMap(e -> e.getId(), Function.identity()));
         } catch (IOException exception) {
             return Collections.EMPTY_MAP;
         }
     }
 
-    private List<ProductItem> getProducts() throws IOException {
-        ProductList productList = objMapper.readValue(new URL(ontologyListFileUrl), ProductList.class);
+    private List<ProductItem> getProducts(String productListUrl) throws IOException {
+        List<ProductItem> productItems = new LinkedList<>();
+        try {
+            ProductList productList = objMapper.readValue(new URL(productListUrl), ProductList.class);
+            if (productList != null) {
+                productItems.addAll(productList.getProducts());
+            }
+        } catch (IOException exception) {
+            LOGGER.error("", exception);
+        }
 
-        return (productList == null) ? Collections.EMPTY_LIST : productList.getProducts();
+        return productItems;
     }
 
 }

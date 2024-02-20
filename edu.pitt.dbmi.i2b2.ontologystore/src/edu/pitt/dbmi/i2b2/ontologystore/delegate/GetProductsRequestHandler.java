@@ -21,6 +21,7 @@ package edu.pitt.dbmi.i2b2.ontologystore.delegate;
 import edu.harvard.i2b2.common.exception.I2B2Exception;
 import edu.pitt.dbmi.i2b2.ontologystore.datavo.i2b2message.MessageHeaderType;
 import edu.pitt.dbmi.i2b2.ontologystore.datavo.i2b2message.ResponseMessageType;
+import edu.pitt.dbmi.i2b2.ontologystore.datavo.pm.ConfigureType;
 import edu.pitt.dbmi.i2b2.ontologystore.datavo.vdo.ProductsType;
 import edu.pitt.dbmi.i2b2.ontologystore.db.PmDBAccess;
 import edu.pitt.dbmi.i2b2.ontologystore.service.OntologyFileService;
@@ -49,14 +50,22 @@ public class GetProductsRequestHandler extends RequestHandler {
 
     @Override
     public String execute() throws I2B2Exception {
-        MessageHeaderType messageHeader = MessageFactory
-                .createResponseMessageHeader(responseDataMessage.getMessageHeaderType());
-        if (isInvalidUser(messageHeader)) {
+        // authorization check
+        MessageHeaderType messageHeader = MessageFactory.createResponseMessageHeader(responseDataMessage.getMessageHeaderType());
+        ConfigureType configureType = getConfigureType(messageHeader);
+        if (isInvalidUser(configureType, messageHeader)) {
             return createInvalidUserResponse(messageHeader);
         }
+        if (isNotAdmin(configureType)) {
+            return createNotAdminResponse(messageHeader);
+        }
+
+        // get properties
+        String productListUrl = getProductListUrl();
+        String downloadDirectory = getDownloadDirectory(configureType);
 
         ProductsType productsType = new ProductsType();
-        productsType.getProduct().addAll(ontologyFileService.getAvailableProducts());
+        productsType.getProduct().addAll(ontologyFileService.getAvailableProducts(downloadDirectory, productListUrl));
 
         ResponseMessageType responseMessageType = MessageFactory
                 .buildGetProductsResponse(messageHeader, productsType);

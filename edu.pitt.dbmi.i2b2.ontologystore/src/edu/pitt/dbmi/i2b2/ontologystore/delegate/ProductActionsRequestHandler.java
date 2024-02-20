@@ -23,6 +23,7 @@ import edu.harvard.i2b2.common.util.jaxb.JAXBUtilException;
 import edu.pitt.dbmi.i2b2.ontologystore.InstallationException;
 import edu.pitt.dbmi.i2b2.ontologystore.datavo.i2b2message.MessageHeaderType;
 import edu.pitt.dbmi.i2b2.ontologystore.datavo.i2b2message.ResponseMessageType;
+import edu.pitt.dbmi.i2b2.ontologystore.datavo.pm.ConfigureType;
 import edu.pitt.dbmi.i2b2.ontologystore.datavo.vdo.ActionSummariesType;
 import edu.pitt.dbmi.i2b2.ontologystore.datavo.vdo.ActionSummaryType;
 import edu.pitt.dbmi.i2b2.ontologystore.datavo.vdo.ProductActionType;
@@ -68,14 +69,19 @@ public class ProductActionsRequestHandler extends RequestHandler {
 
     @Override
     public String execute() throws I2B2Exception {
-        MessageHeaderType messageHeader = MessageFactory
-                .createResponseMessageHeader(productActionDataMsg.getMessageHeaderType());
-        if (isInvalidUser(messageHeader)) {
+        // authorization check
+        MessageHeaderType messageHeader = MessageFactory.createResponseMessageHeader(productActionDataMsg.getMessageHeaderType());
+        ConfigureType configureType = getConfigureType(messageHeader);
+        if (isInvalidUser(configureType, messageHeader)) {
             return createInvalidUserResponse(messageHeader);
         }
-        if (isNotAdmin(messageHeader)) {
+        if (isNotAdmin(configureType)) {
             return createNotAdminResponse(messageHeader);
         }
+
+        // get properties
+        String productListUrl = getProductListUrl();
+        String downloadDirectory = getDownloadDirectory(configureType);
 
         List<ProductActionType> actions = new LinkedList<>();
         try {
@@ -89,9 +95,9 @@ public class ProductActionsRequestHandler extends RequestHandler {
         ActionSummariesType actionSummariesType = new ActionSummariesType();
         List<ActionSummaryType> summaries = actionSummariesType.getActionSummary();
         try {
-            ontologyDownloadService.performDownload(actions, summaries);
-            ontologyInstallService.performInstallation(messageHeader.getProjectId(), actions, summaries);
-            ontologyDisableService.performDisableEnable(messageHeader.getProjectId(), actions, summaries);
+            ontologyDownloadService.performDownload(downloadDirectory, productListUrl, actions, summaries);
+            ontologyInstallService.performInstallation(downloadDirectory, messageHeader.getProjectId(), productListUrl, actions, summaries);
+            ontologyDisableService.performDisableEnable(downloadDirectory, messageHeader.getProjectId(), productListUrl, actions, summaries);
         } catch (InstallationException exception) {
             throw new I2B2Exception(exception.getMessage());
         }
